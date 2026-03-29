@@ -1372,79 +1372,216 @@
   border-radius: 18px;
 }
 
-.empty-state {
-  .error-banner,
-  .stale-banner {
-    color: rgba(235, 239, 247, 0.72);
+.empty-state,
+.stale-banner {
+  color: rgba(235, 239, 247, 0.72);
+}
+
+.error-banner {
+  background: rgba(169, 53, 38, 0.18);
+  border: 1px solid rgba(255, 129, 96, 0.3);
+  color: #ffd0c4;
+}
+
+.stale-banner {
+  background: rgba(160, 120, 30, 0.15);
+  border: 1px solid rgba(255, 205, 96, 0.26);
+  color: #ffe5a4;
+}
+
+.stale-banner p {
+  margin: 0;
+}
+
+.stale-banner p + p {
+  margin-top: 0.4rem;
+}
+
+@media (max-width: 980px) {
+  .hero-panel,
+  .result-action-card,
+  .terminal-pie-layout {
+    grid-template-columns: 1fr;
   }
 
-  .error-banner {
-    background: rgba(169, 53, 38, 0.18);
-    border: 1px solid rgba(255, 129, 96, 0.3);
-    color: #ffd0c4;
+  .grade-grid,
+  .simulation-summary-grid,
+  .cumulative-chart-summary,
+  .simulation-meta-card,
+  .simulation-compare-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .stale-banner {
-    background: rgba(160, 120, 30, 0.15);
-    border: 1px solid rgba(255, 205, 96, 0.26);
-    color: #ffe5a4;
+  .target-state-grid,
+  .ingame-field-grid,
+  .distribution-row,
+  .terminal-distribution-row {
+    grid-template-columns: 1fr;
   }
 
-  .stale-banner p {
-    margin: 0;
+  .cost-weight-grid,
+  .cost-weight-summary {
+    grid-template-columns: 1fr;
   }
 
-  .stale-banner p + p {
-    margin-top: 0.4rem;
+  .hero-panel {
+    gap: 1rem;
   }
 
-  @media (max-width: 980px) {
-    .hero-panel,
-    .grade-grid,
-    .target-state-grid,
-    .result-hero,
-    .ingame-field-grid,
-    .result-action-card,
-    .lock-visual-grid,
-    .simulation-summary-grid,
-    .cumulative-chart-summary,
-    .terminal-pie-layout,
-    .distribution-row,
-    .terminal-distribution-row {
-      grid-template-columns: 1fr;
-    }
+  .hero-meta-panel {
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
 
-    .terminal-pie-chart-shell {
-      height: 14rem;
-      min-height: 14rem;
-    }
+  .hero-meta {
+    justify-items: start;
+    text-align: left;
+  }
 
-    .terminal-pie-legend-row {
-      grid-template-columns: auto minmax(0, 1fr);
-    }
+  .target-header,
+  .simulation-block-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-    .terminal-pie-stats {
-      justify-items: start;
-      text-align: left;
-      grid-column: 2;
-    }
+  .target-actions {
+    justify-content: stretch;
+  }
 
-    .cumulative-chart-shell {
-      grid-template-columns: 1fr;
-    }
+  .target-actions > button {
+    flex: 1 1 12rem;
+  }
 
-    .simulation-block-header {
-      flex-direction: column;
-      align-items: stretch;
-    }
+  .distribution-share,
+  .terminal-pie-stats {
+    text-align: left;
+    justify-items: start;
+  }
 
-    .distribution-share {
-      text-align: left;
-    }
+  .terminal-pie-legend-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
 
-    .result-panel {
-      overflow: visible;
-      min-height: auto;
-    }
+  .terminal-pie-stats {
+    grid-column: 2;
+  }
+
+  .terminal-pie-chart-shell {
+    height: 14rem;
+    min-height: 14rem;
+  }
+
+  .result-panel {
+    overflow: visible;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-panel {
+    padding: 1rem;
+    border-radius: 20px;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(1.55rem, 9vw, 2.05rem);
+    line-height: 1.02;
+  }
+
+  .eyebrow {
+    letter-spacing: 0.11em;
+    font-size: 0.68rem;
+  }
+
+  .hero-note {
+    font-size: 0.88rem;
+  }
+
+  .grade-grid,
+  .simulation-summary-grid,
+  .cumulative-chart-summary,
+  .simulation-meta-card,
+  .simulation-compare-values,
+  .lock-visual-grid,
+  .cost-weight-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .ingame-option-card,
+  .cost-weight-card,
+  .simulation-stat-card,
+  .simulation-block,
+  .target-card,
+  .grade-card,
+  .metric-card {
+    border-radius: 18px;
+  }
+
+  .ingame-option-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  .slot-tag {
+    min-width: 0;
+  }
+
+  .start-lock-controls {
+    justify-content: space-between;
+  }
+
+  .result-hero h3 {
+    font-size: clamp(1.6rem, 11vw, 2.2rem);
+  }
+
+  .detail-divider {
+    grid-template-columns: 1fr auto;
+    gap: 0.7rem;
+  }
+
+  .detail-divider-line {
+    display: none;
+  }
+
+  .detail-refresh-button {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .cumulative-chart-svg {
+    height: 11.5rem;
+  }
+
+  .terminal-pie-chart-shell {
+    height: 12.5rem;
+    min-height: 12.5rem;
+  }
+
+  .start-lock-tooltip,
+  .cost-weight-tooltip-shell .start-lock-tooltip {
+    left: 50%;
+    right: auto;
+    top: calc(100% + 0.55rem);
+    max-width: min(17rem, calc(100vw - 2.5rem));
+    transform: translateX(-50%) translateY(-0.15rem);
+  }
+
+  .start-lock-tooltip::after,
+  .cost-weight-tooltip-shell .start-lock-tooltip::after {
+    top: -0.32rem;
+    left: 50%;
+    right: auto;
+    border-top: 1px solid rgba(245, 146, 79, 0.24);
+    border-right: 1px solid rgba(245, 146, 79, 0.24);
+    border-left: 0;
+    transform: translateX(-50%) rotate(-45deg);
+  }
+
+  .start-lock-tooltip-shell:hover .start-lock-tooltip,
+  .start-lock-tooltip-shell:focus-within .start-lock-tooltip,
+  .cost-weight-tooltip-shell:hover .start-lock-tooltip,
+  .cost-weight-tooltip-shell:focus-within .start-lock-tooltip {
+    transform: translateX(-50%) translateY(0);
   }
 }

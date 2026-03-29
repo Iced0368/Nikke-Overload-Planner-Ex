@@ -36,3 +36,9 @@ textarea {
   margin: 0 auto;
   padding: 1.25rem;
 }
+
+@media (max-width: 640px) {
+  #root {
+    padding: 0.8rem;
+  }
+}
