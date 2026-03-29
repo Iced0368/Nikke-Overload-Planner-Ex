@@ -1,4 +1,4 @@
-# Nikke Equip Overload
+# Nikke Overload Planner Ex
 
 니케 오버로드 옵션 세팅에서 현재 상태를 기준으로 목표 조합까지의 기대 소모량과 최적 리롤 행동을 계산하는 웹 플래너입니다.
 
@@ -77,7 +77,7 @@ npm run lint
 
 - main 브랜치에 푸시하면 자동으로 빌드 후 배포
 - Actions 탭에서 수동 실행도 가능
-- 배포 대상 URL: https://iced0368.github.io/Nikke-Overload-Planner/
+- 배포 대상 URL: https://iced0368.github.io/Nikke-Overload-Planner-Ex/
 
 ### 최초 1회 설정
 

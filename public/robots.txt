@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://iced0368.github.io/Nikke-Overload-Planner/sitemap.xml
+Sitemap: https://iced0368.github.io/Nikke-Overload-Planner-Ex/sitemap.xml
