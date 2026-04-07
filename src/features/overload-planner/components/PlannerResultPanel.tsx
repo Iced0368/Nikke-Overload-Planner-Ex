@@ -131,6 +131,7 @@ function buildTerminalGroupLabel(
   emptyCount: number,
   targetGradeMap: Map<number, number>,
   outcome: "success" | "failure",
+  isClassicMode: boolean,
 ) {
   const parts = optionIndexes.map((optionIndex) => getOptionName(optionIndex));
   for (let index = 0; index < emptyCount; index++) {
@@ -142,6 +143,13 @@ function buildTerminalGroupLabel(
     gradeParts.push("-");
   }
 
+  if (isClassicMode) {
+    return {
+      label: parts.join(" / "),
+      secondaryLabel: `등급 기준: ${gradeParts.join("/")}`,
+    };
+  }
+
   return {
     label: `${outcome === "success" ? "성공" : "실패"} · ${parts.join(" / ")}`,
     secondaryLabel: `${outcome === "success" ? "목표 달성 종료" : "예산 소진 종료"} · 등급 기준: ${gradeParts.join("/")}`,
@@ -151,6 +159,7 @@ function buildTerminalGroupLabel(
 function buildGroupedTerminalPieData(
   terminalStateDistribution: MonteCarloSimulationSummary["terminalStateDistribution"],
   targetGrades: OverloadOptionTarget[],
+  isClassicMode: boolean,
 ) {
   const targetGradeMap = buildTargetGradeMap(targetGrades);
   const grouped = new Map<string, Omit<TerminalPieDatum, "color">>();
@@ -170,7 +179,13 @@ function buildGroupedTerminalPieData(
       continue;
     }
 
-    const { label, secondaryLabel } = buildTerminalGroupLabel(optionIndexes, emptyCount, targetGradeMap, entry.outcome);
+    const { label, secondaryLabel } = buildTerminalGroupLabel(
+      optionIndexes,
+      emptyCount,
+      targetGradeMap,
+      entry.outcome,
+      isClassicMode,
+    );
     grouped.set(key, {
       key,
       outcome: entry.outcome,
@@ -547,7 +562,7 @@ export function PlannerResultPanel({
     ? buildCumulativeChartData(displayedCumulativeDistribution.buckets)
     : null;
   const terminalPie = detailedSimulationResult
-    ? buildGroupedTerminalPieData(detailedSimulationResult.terminalStateDistribution, targetGrades)
+    ? buildGroupedTerminalPieData(detailedSimulationResult.terminalStateDistribution, targetGrades, isClassicMode)
     : null;
   const budgetChartData = budgetOptimizationResult?.curve.map((point) => ({
     moduleBudget: point.moduleBudget,
@@ -1155,11 +1170,13 @@ export function PlannerResultPanel({
                         {terminalPie.pieData.map((entry) => (
                           <div
                             className={`${
-                              entry.outcome === "success"
-                                ? "terminal-pie-legend-row is-success"
-                                : entry.outcome === "failure"
-                                  ? "terminal-pie-legend-row is-failure"
-                                  : "terminal-pie-legend-row"
+                              isClassicMode
+                                ? "terminal-pie-legend-row"
+                                : entry.outcome === "success"
+                                  ? "terminal-pie-legend-row is-success"
+                                  : entry.outcome === "failure"
+                                    ? "terminal-pie-legend-row is-failure"
+                                    : "terminal-pie-legend-row"
                             }${
                               activeTerminalPieKey === null
                                 ? ""
