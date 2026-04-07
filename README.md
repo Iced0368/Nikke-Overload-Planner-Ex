@@ -1,6 +1,7 @@
 # NOPE: Nikke Overload Planner Engine
 
-<img width="891" height="138" alt="배너" src="https://github.com/user-attachments/assets/61edeee6-b9aa-4fe4-b617-9c248bcecff5" />
+<img width="964" height="137" alt="배너" src="https://github.com/user-attachments/assets/9a165f46-239e-4a7d-8752-4a91936ced50" />
+
 
 <br/>
 
