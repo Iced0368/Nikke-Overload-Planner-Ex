@@ -50,6 +50,16 @@ export type OverloadBudgetRecommendation = {
   action: OverloadAction | null;
 };
 
+export type OverloadBudgetActionAlternative = {
+  protectedMask: [boolean, boolean, boolean];
+  action: Exclude<OverloadAction, { type: "done" }>;
+  successProbability: number;
+  expectedLockKeyCost: number;
+  deltaFromOptimalProbability: number;
+  deltaFromOptimalLockKeyCost: number;
+  isCurrentOptimal: boolean;
+};
+
 export type OverloadBudgetOptimizationSummary = {
   moduleBudget: number;
   current: OverloadBudgetRecommendation;
@@ -255,6 +265,36 @@ function buildDerivedBudgetData(targetOptionIds: OverloadOptionIds[], targetGrad
   };
 }
 
+function buildRequiredGradeSuccessProbabilities(targetGradeTargets: OverloadOptionTarget[]) {
+  const optionIndexById = new Map<string, number>();
+  const gradeTailProbabilityByThreshold = Array<number>(OVERLOAD_GRADE_COUNT + 1).fill(0);
+
+  for (let index = 1; index < overloadOptions.length; index++) {
+    const option = overloadOptions[index];
+    if (option) {
+      optionIndexById.set(option.id, index);
+    }
+  }
+
+  for (let grade = OVERLOAD_GRADE_COUNT - 1; grade >= 0; grade--) {
+    gradeTailProbabilityByThreshold[grade] =
+      gradeTailProbabilityByThreshold[grade + 1]! + overloadGradeProbabilities[grade]!;
+  }
+
+  const requiredGradeByOption = Array(OVERLOAD_OPTION_COUNT + 1).fill(0);
+  for (const target of targetGradeTargets) {
+    const optionIndex = optionIndexById.get(target.id);
+    if (optionIndex !== undefined) {
+      requiredGradeByOption[optionIndex] = target.grade;
+    }
+  }
+
+  return requiredGradeByOption.map((requiredGrade) => {
+    const successProbability = gradeTailProbabilityByThreshold[requiredGrade]!;
+    return [1 - successProbability, successProbability] as [number, number];
+  });
+}
+
 function isBetterCandidate(
   probability: number,
   expectedLockKeyCost: number,
@@ -308,6 +348,272 @@ export function readOverloadBudgetOptimizationSummary(
     },
     curve,
   };
+}
+
+export function readOverloadBudgetActionAlternatives(
+  result: OverloadBudgetOptimizationResult,
+  startState: OverloadState,
+  targetGradeTargets: OverloadOptionTarget[],
+): OverloadBudgetActionAlternative[] {
+  const startStateIndex = result.stateIndexByKey[encodeStateKey(startState)];
+  if (startStateIndex === -1) {
+    return [];
+  }
+
+  const currentTableIndex = readBudgetTableIndex(result, result.moduleBudget, startStateIndex);
+  const currentActionType = result.actionTypeTable[currentTableIndex]!;
+  if (currentActionType === -1 || currentActionType === ACTION_DONE) {
+    return [];
+  }
+
+  const [o1, o2, o3, g1, g2, g3] = startState;
+  const currentModuleMask = moduleMaskFromState(startState);
+  const unresolvedSlotMask =
+    (o1 !== 0 && g1 === 0 ? 1 : 0) | (o2 !== 0 && g2 === 0 ? 2 : 0) | (o3 !== 0 && g3 === 0 ? 4 : 0);
+  const currentSuccessProbability = result.successProbabilityTable[currentTableIndex]!;
+  const currentExpectedLockKeyCost = result.expectedLockKeyCostTable[currentTableIndex]!;
+  const meetsTargetGradeProbabilities = buildRequiredGradeSuccessProbabilities(targetGradeTargets);
+  const alternatives: OverloadBudgetActionAlternative[] = [];
+
+  const chooseBetterAlternative = (
+    current: OverloadBudgetActionAlternative | null,
+    candidate: OverloadBudgetActionAlternative,
+  ) => {
+    if (!current) {
+      return candidate;
+    }
+
+    if (
+      isBetterCandidate(
+        candidate.successProbability,
+        candidate.expectedLockKeyCost,
+        current.successProbability,
+        current.expectedLockKeyCost,
+      )
+    ) {
+      return candidate;
+    }
+
+    return current;
+  };
+
+  const buildAlternative = (
+    actionType: number,
+    nextModuleMask: number,
+    keyMask: number,
+    successProbability: number,
+    expectedLockKeyCost: number,
+  ): OverloadBudgetActionAlternative => ({
+    protectedMask: decodeBooleanMask(nextModuleMask | keyMask),
+    action: buildActionFromMasks(actionType, nextModuleMask, keyMask) as Exclude<OverloadAction, { type: "done" }>,
+    successProbability,
+    expectedLockKeyCost,
+    deltaFromOptimalProbability: currentSuccessProbability - successProbability,
+    deltaFromOptimalLockKeyCost: expectedLockKeyCost - currentExpectedLockKeyCost,
+    isCurrentOptimal:
+      actionType === currentActionType &&
+      nextModuleMask === result.actionModuleMaskTable[currentTableIndex]! &&
+      keyMask === result.actionKeyMaskTable[currentTableIndex]!,
+  });
+
+  const evaluateGradeAction = (protectedMask: number, nextModuleMask: number) => {
+    const keyMask = protectedMask ^ nextModuleMask;
+    const moduleCost = buildActionCosts(currentModuleMask, nextModuleMask, keyMask).moduleCost;
+    if (moduleCost > result.moduleBudget) {
+      return null;
+    }
+
+    let nextProbability = 0;
+    let nextExpectedLockKeyCost = actionLockKeyCostByMaskTripletLocal(currentModuleMask, nextModuleMask, keyMask);
+    const remainingBudget = result.moduleBudget - moduleCost;
+    const nextTableOffset = remainingBudget * result.stateCount;
+
+    for (let gradeMask = 0; gradeMask < GRADE_MASK_COUNT; gradeMask++) {
+      const ng1 = gradeMask & 1 ? 1 : 0;
+      const ng2 = gradeMask & 2 ? 1 : 0;
+      const ng3 = gradeMask & 4 ? 1 : 0;
+      if ((protectedMask & 1) !== 0 && ng1 !== g1) continue;
+      if ((protectedMask & 2) !== 0 && ng2 !== g2) continue;
+      if ((protectedMask & 4) !== 0 && ng3 !== g3) continue;
+
+      let probability = 1;
+      if ((protectedMask & 1) === 0) probability *= meetsTargetGradeProbabilities[o1]![ng1]!;
+      if ((protectedMask & 2) === 0) probability *= meetsTargetGradeProbabilities[o2]![ng2]!;
+      if ((protectedMask & 4) === 0) probability *= meetsTargetGradeProbabilities[o3]![ng3]!;
+      if (probability <= 0) continue;
+
+      const nextStateIndex =
+        result.stateIndexByKey[
+          encodeStateKeyFromParts(
+            o1,
+            o2,
+            o3,
+            ng1,
+            ng2,
+            ng3,
+            Number(Boolean(nextModuleMask & 1)),
+            Number(Boolean(nextModuleMask & 2)),
+            Number(Boolean(nextModuleMask & 4)),
+          )
+        ];
+      if (nextStateIndex === -1) {
+        continue;
+      }
+
+      nextProbability += probability * result.successProbabilityTable[nextTableOffset + nextStateIndex]!;
+      nextExpectedLockKeyCost += probability * result.expectedLockKeyCostTable[nextTableOffset + nextStateIndex]!;
+    }
+
+    if (nextProbability <= COMPARISON_EPSILON) {
+      return null;
+    }
+
+    return buildAlternative(ACTION_GRADE, nextModuleMask, keyMask, nextProbability, nextExpectedLockKeyCost);
+  };
+
+  const evaluateOptionAction = (protectedMask: number, nextModuleMask: number) => {
+    const keyMask = protectedMask ^ nextModuleMask;
+    const moduleCost = buildActionCosts(currentModuleMask, nextModuleMask, keyMask).moduleCost;
+    if (moduleCost > result.moduleBudget) {
+      return null;
+    }
+
+    const remainingBudget = result.moduleBudget - moduleCost;
+    const nextTableOffset = remainingBudget * result.stateCount;
+    let probabilityMass = 0;
+    let nextProbability = 0;
+    let nextExpectedLockKeyCost = actionLockKeyCostByMaskTripletLocal(currentModuleMask, nextModuleMask, keyMask);
+
+    for (const candidateState of iterateOverloadStates()) {
+      if (
+        candidateState[6] !== Number(Boolean(nextModuleMask & 1)) ||
+        candidateState[7] !== Number(Boolean(nextModuleMask & 2)) ||
+        candidateState[8] !== Number(Boolean(nextModuleMask & 4))
+      ) {
+        continue;
+      }
+
+      let weight = 1;
+      for (let slot = 0; slot < 3; slot++) {
+        const currentOption = startState[slot]!;
+        const currentGrade = startState[slot + 3]!;
+        const nextOption = candidateState[slot]!;
+        const nextGrade = candidateState[slot + 3]!;
+
+        if (((protectedMask >> slot) & 1) !== 0) {
+          if (currentOption !== nextOption || currentGrade !== nextGrade) {
+            weight = 0;
+            break;
+          }
+          continue;
+        }
+
+        if (nextOption === 0) {
+          if (nextGrade !== 0) {
+            weight = 0;
+            break;
+          }
+
+          weight *= 1 - slotOptionProbabilities[slot]!;
+          continue;
+        }
+
+        weight *=
+          slotOptionProbabilities[slot]! *
+          overloadOptions[nextOption]!.probability *
+          meetsTargetGradeProbabilities[nextOption]![nextGrade]!;
+      }
+
+      if (weight <= 0) {
+        continue;
+      }
+
+      const nextStateIndex = result.stateIndexByKey[encodeStateKey(candidateState)];
+      if (nextStateIndex === -1) {
+        continue;
+      }
+
+      probabilityMass += weight;
+      nextProbability += weight * result.successProbabilityTable[nextTableOffset + nextStateIndex]!;
+      nextExpectedLockKeyCost += weight * result.expectedLockKeyCostTable[nextTableOffset + nextStateIndex]!;
+    }
+
+    if (probabilityMass <= COMPARISON_EPSILON) {
+      return null;
+    }
+
+    nextProbability /= probabilityMass;
+    nextExpectedLockKeyCost /= probabilityMass;
+    if (nextProbability <= COMPARISON_EPSILON) {
+      return null;
+    }
+
+    return buildAlternative(ACTION_OPTION, nextModuleMask, keyMask, nextProbability, nextExpectedLockKeyCost);
+  };
+
+  for (const protectedMask of MASKS) {
+    if (!canUseMask([o1, o2, o3], protectedMask)) {
+      continue;
+    }
+
+    if ((protectedMask & unresolvedSlotMask) !== 0) {
+      continue;
+    }
+
+    let bestAlternative: OverloadBudgetActionAlternative | null = null;
+    for (const nextModuleMask of MASKS) {
+      if (!canUseMask([o1, o2, o3], nextModuleMask)) {
+        continue;
+      }
+
+      if ((nextModuleMask & protectedMask) !== nextModuleMask) {
+        continue;
+      }
+
+      const optionAlternative = evaluateOptionAction(protectedMask, nextModuleMask);
+      if (optionAlternative) {
+        bestAlternative = chooseBetterAlternative(bestAlternative, optionAlternative);
+      }
+
+      const gradeAlternative = evaluateGradeAction(protectedMask, nextModuleMask);
+      if (gradeAlternative) {
+        bestAlternative = chooseBetterAlternative(bestAlternative, gradeAlternative);
+      }
+    }
+
+    if (bestAlternative) {
+      alternatives.push(bestAlternative);
+    }
+  }
+
+  alternatives.sort((left, right) => {
+    if (
+      isBetterCandidate(
+        left.successProbability,
+        left.expectedLockKeyCost,
+        right.successProbability,
+        right.expectedLockKeyCost,
+      )
+    ) {
+      return -1;
+    }
+    if (
+      isBetterCandidate(
+        right.successProbability,
+        right.expectedLockKeyCost,
+        left.successProbability,
+        left.expectedLockKeyCost,
+      )
+    ) {
+      return 1;
+    }
+    return 0;
+  });
+  return alternatives;
+}
+
+function actionLockKeyCostByMaskTripletLocal(currentModuleMask: number, nextModuleMask: number, keyMask: number) {
+  return buildActionCosts(currentModuleMask, nextModuleMask, keyMask).lockKeyCost;
 }
 
 export function optimizeOverloadBudgetSuccess(

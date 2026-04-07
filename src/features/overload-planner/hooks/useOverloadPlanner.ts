@@ -1,6 +1,8 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
+  readOverloadBudgetActionAlternatives,
   readOverloadBudgetOptimizationSummary,
+  type OverloadBudgetActionAlternative,
   type OverloadBudgetOptimizationResult,
   type OverloadBudgetOptimizationSummary,
 } from "../../../lib/overloadBudgetOptimizer.ts";
@@ -556,6 +558,25 @@ export function useOverloadPlanner() {
     );
   }, [binaryStartState, budgetOptimizationResult, hasStaleBudgetOptimization, startModuleLocks]);
 
+  const budgetActionAlternatives = useMemo<OverloadBudgetActionAlternative[]>(() => {
+    if (!budgetOptimizationResult || hasStaleBudgetOptimization || plannerMode !== "budget") {
+      return [];
+    }
+
+    return readOverloadBudgetActionAlternatives(
+      budgetOptimizationResult,
+      buildSimulationStartState(binaryStartState, startModuleLocks),
+      targetGrades,
+    );
+  }, [
+    binaryStartState,
+    budgetOptimizationResult,
+    hasStaleBudgetOptimization,
+    plannerMode,
+    startModuleLocks,
+    targetGrades,
+  ]);
+
   const updateStartStateSlot = (slot: 0 | 1 | 2, value: number) => {
     setStartState((current) => {
       const next = [...current] as StartStateDraft;
@@ -828,6 +849,7 @@ export function useOverloadPlanner() {
     binaryStartState,
     currentStateValue,
     forcedLockAlternatives,
+    budgetActionAlternatives,
     budgetOptimizationResult: displayedBudgetOptimizationResult,
     budgetOptimizationError,
     isBudgetOptimizationRunning,

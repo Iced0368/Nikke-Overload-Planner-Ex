@@ -1019,6 +1019,27 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.budget-alternative-card {
+  margin-top: 1rem;
+}
+
+.budget-alternative-header {
+  gap: 0.24rem;
+}
+
+.budget-alternative-summary {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: start;
+  justify-content: start;
+  column-gap: 1.2rem;
+  row-gap: 0.35rem;
+}
+
+.budget-alternative-summary h3 {
+  margin: 0;
+}
+
 .forced-lock-list {
   display: grid;
   gap: 0.7rem;
@@ -1053,11 +1074,50 @@
   font-size: clamp(1.4rem, 3vw, 2rem);
 }
 
+.budget-alternative-amount {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+}
+
+.budget-alternative-hero {
+  justify-items: start;
+  text-align: left;
+  flex-shrink: 0;
+}
+
 .forced-lock-header {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   flex-wrap: wrap;
+}
+
+.budget-alternative-delta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.budget-alternative-delta-grid > div {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.budget-alternative-delta-grid strong {
+  color: #edf2fa;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .budget-alternative-summary {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .budget-alternative-hero {
+    justify-items: start;
+    text-align: left;
+  }
 }
 
 .forced-lock-action-visual {

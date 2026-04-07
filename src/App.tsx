@@ -29,6 +29,7 @@ function App() {
     binaryStartState,
     currentStateValue,
     forcedLockAlternatives,
+    budgetActionAlternatives,
     detailedSimulationResult,
     simulationError,
     isSimulationRunning,
@@ -163,6 +164,7 @@ function App() {
             optimizationProgress={optimizationProgress}
             currentStateValue={currentStateValue}
             forcedLockAlternatives={forcedLockAlternatives}
+            budgetActionAlternatives={budgetActionAlternatives}
             moduleBudget={moduleBudget}
             budgetOptimizationResult={budgetOptimizationResult}
             budgetOptimizationError={budgetOptimizationError}

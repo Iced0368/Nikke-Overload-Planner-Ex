@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { type OverloadBudgetOptimizationSummary } from "../../../lib/overloadBudgetOptimizer.ts";
+import {
+  type OverloadBudgetActionAlternative,
+  type OverloadBudgetOptimizationSummary,
+} from "../../../lib/overloadBudgetOptimizer.ts";
 import {
   Area,
   AreaChart,
@@ -28,6 +31,8 @@ const TERMINAL_PIE_GROUP_LIMIT = 6;
 const TERMINAL_PIE_COLORS = ["#ffc178", "#83b0ff", "#7ec48f", "#ff8f70", "#d2b4ff", "#7adad1", "#8d96a9"];
 const FORCED_LOCK_ALTERNATIVE_MAX_RATIO = 0.05;
 const FORCED_LOCK_ALTERNATIVE_MAX_SCORE_DELTA = 5;
+const BUDGET_ALTERNATIVE_MAX_PROBABILITY_DELTA = 0.03;
+const BUDGET_ALTERNATIVE_MAX_COUNT = 3;
 
 type PlannerResultPanelProps = {
   mode: PlannerMode;
@@ -37,6 +42,7 @@ type PlannerResultPanelProps = {
   optimizationProgress: OverloadOptimizationProgress | null;
   currentStateValue: OverloadStateValue | null;
   forcedLockAlternatives: OverloadForcedLockAlternative[];
+  budgetActionAlternatives: OverloadBudgetActionAlternative[];
   moduleBudget: number;
   budgetOptimizationResult: OverloadBudgetOptimizationSummary | null;
   budgetOptimizationError: string | null;
@@ -305,6 +311,49 @@ function renderTerminalPieTooltip(active?: boolean, payload?: ReadonlyArray<{ pa
   );
 }
 
+function renderCumulativeChartTooltip(
+  metricLabel: string,
+  active?: boolean,
+  payload?: ReadonlyArray<{
+    value?: number | string | ReadonlyArray<number | string>;
+    payload?: { costUpperBound?: number };
+  }>,
+) {
+  const entry = active ? payload?.[0] : undefined;
+
+  if (!entry || entry.value === undefined || entry.payload?.costUpperBound === undefined) {
+    return null;
+  }
+
+  const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value;
+  if (rawValue === undefined) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 6,
+        minWidth: 180,
+        padding: "0.75rem 0.85rem",
+        borderRadius: 14,
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(14, 19, 30, 0.96)",
+        boxShadow: "0 16px 32px rgba(7, 12, 22, 0.28)",
+      }}
+    >
+      <strong style={{ color: "#edf2fa", fontSize: "0.9rem", lineHeight: 1.35 }}>
+        {`${metricLabel} ≤ ${Number(entry.payload.costUpperBound).toFixed(0)}`}
+      </strong>
+      <div style={{ display: "grid", gap: 2 }}>
+        <span style={{ color: "rgba(233, 238, 247, 0.62)", fontSize: "0.72rem" }}>누적 확률</span>
+        <strong style={{ color: "#f4f7fb", fontSize: "0.88rem" }}>{`${Number(rawValue).toFixed(1)}%`}</strong>
+      </div>
+    </div>
+  );
+}
+
 function formatComparisonDelta(value: number) {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${Math.abs(value).toFixed(2)}`;
@@ -422,6 +471,21 @@ function getForcedLockAlternativeTitle(alternative: OverloadForcedLockAlternativ
   return getAlternativeActionSummary(alternative);
 }
 
+function getBudgetAlternativeTitle(alternative: OverloadBudgetActionAlternative) {
+  return alternative.action.type === "option" ? "효과 변경" : "수치 재설정";
+}
+
+function formatProbabilityPointDelta(value: number) {
+  const pointDelta = value * 100;
+  const sign = pointDelta > 0 ? "+" : pointDelta < 0 ? "-" : "";
+  return `${sign}${Math.abs(pointDelta).toFixed(2)}%p`;
+}
+
+function formatLockKeyDelta(value: number) {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value).toFixed(2)}개`;
+}
+
 export function PlannerResultPanel({
   mode,
   result,
@@ -430,6 +494,7 @@ export function PlannerResultPanel({
   optimizationProgress,
   currentStateValue,
   forcedLockAlternatives,
+  budgetActionAlternatives,
   moduleBudget,
   budgetOptimizationResult,
   budgetOptimizationError,
@@ -578,6 +643,10 @@ export function PlannerResultPanel({
       );
     });
   })();
+  const visibleBudgetAlternatives = budgetActionAlternatives
+    .filter((alternative) => !alternative.isCurrentOptimal)
+    .filter((alternative) => alternative.deltaFromOptimalProbability <= BUDGET_ALTERNATIVE_MAX_PROBABILITY_DELTA)
+    .slice(0, BUDGET_ALTERNATIVE_MAX_COUNT);
   const hasDetailedSimulationResult = detailedSimulationResult !== null;
   const activeAction = isClassicMode
     ? (currentStateValue?.action ?? null)
@@ -800,6 +869,82 @@ export function PlannerResultPanel({
 
                             return (
                               <div className={className} key={`forced-lock-${index}-${slotIndex}`}>
+                                <span className="lock-visual-index">{slotIndex + 1}</span>
+                                <span className="lock-visual-state">
+                                  {isModuleLocked ? "모듈" : isKeyLocked ? "락키" : "개방"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {isBudgetMode && visibleBudgetAlternatives.length > 0 ? (
+            <div className="forced-lock-card budget-alternative-card">
+              <div className="simulation-block-header budget-alternative-header">
+                <h3>유사한 대안 행동</h3>
+                <span className="section-caption">
+                  성공 확률 차이가 {formatProbabilityPointDelta(BUDGET_ALTERNATIVE_MAX_PROBABILITY_DELTA)} 이내인 후보만
+                  표시합니다.
+                </span>
+              </div>
+              <div className="forced-lock-list">
+                {visibleBudgetAlternatives.map((alternative, index) => {
+                  const alternativeTitle = getBudgetAlternativeTitle(alternative);
+
+                  return (
+                    <div
+                      className="forced-lock-row"
+                      key={`${index}-${alternative.action.type}-${formatProtectedMaskLabel(alternative.protectedMask)}`}
+                    >
+                      <div className="result-action-copy forced-lock-action-copy">
+                        <div className="forced-lock-header">
+                          <span className="result-action-kicker">Alternative</span>
+                        </div>
+                        <div className="budget-alternative-summary">
+                          <h3>{alternativeTitle}</h3>
+                          <div className="forced-lock-hero budget-alternative-hero">
+                            <h3 className="result-hero-amount forced-lock-amount budget-alternative-amount">
+                              <span className="result-hero-number">
+                                {(alternative.successProbability * 100).toFixed(2)}%
+                              </span>
+                            </h3>
+                            <p className="section-caption">기대 락키 {alternative.expectedLockKeyCost.toFixed(2)}개</p>
+                          </div>
+                        </div>
+                        <div className="budget-alternative-delta-grid">
+                          <div>
+                            <span className="result-label">최적 대비 성공 확률</span>
+                            <strong>{formatProbabilityPointDelta(-alternative.deltaFromOptimalProbability)}</strong>
+                          </div>
+                          <div>
+                            <span className="result-label">최적 대비 락키</span>
+                            <strong>{formatLockKeyDelta(alternative.deltaFromOptimalLockKeyCost)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="result-action-visual forced-lock-action-visual">
+                        <div className={`action-type-badge action-type-${alternative.action.type}`}>
+                          {alternativeTitle}
+                        </div>
+                        <div className="lock-visual-grid">
+                          {[0, 1, 2].map((slotIndex) => {
+                            const isModuleLocked = alternative.action.moduleLock[slotIndex];
+                            const isKeyLocked = alternative.action.keyLock[slotIndex];
+                            const className = isModuleLocked
+                              ? "lock-visual-slot is-module-locked"
+                              : isKeyLocked
+                                ? "lock-visual-slot is-key-locked"
+                                : "lock-visual-slot";
+
+                            return (
+                              <div className={className} key={`budget-alt-${index}-${slotIndex}`}>
                                 <span className="lock-visual-index">{slotIndex + 1}</span>
                                 <span className="lock-visual-state">
                                   {isModuleLocked ? "모듈" : isKeyLocked ? "락키" : "개방"}
@@ -1070,19 +1215,9 @@ export function PlannerResultPanel({
                                     tick={{ fill: "rgba(233, 238, 247, 0.62)", fontSize: 12 }}
                                   />
                                   <Tooltip
-                                    formatter={(value) => [
-                                      `${Number(value).toFixed(1)}%`,
-                                      activeCumulativeConfig.label,
-                                    ]}
-                                    labelFormatter={(label) => `≤ ${Number(label).toFixed(0)}`}
-                                    contentStyle={{
-                                      borderRadius: 14,
-                                      border: "1px solid rgba(255,255,255,0.08)",
-                                      background: "rgba(14, 19, 30, 0.96)",
-                                      boxShadow: "0 16px 32px rgba(7, 12, 22, 0.28)",
-                                    }}
-                                    labelStyle={{ color: "#edf2fa", fontWeight: 700, marginBottom: 4 }}
-                                    itemStyle={{ color: "#edf2fa", padding: 0 }}
+                                    content={({ active, payload }) =>
+                                      renderCumulativeChartTooltip(activeCumulativeConfig.label, active, payload)
+                                    }
                                     cursor={{ stroke: "rgba(255, 193, 120, 0.35)", strokeWidth: 1 }}
                                   />
                                   <Area
