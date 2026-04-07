@@ -374,11 +374,13 @@ export function readForcedLockAlternatives(
 
   const evaluateOptionAction = (protectedMask: number, nextModuleMask: number) => {
     const keyMask = protectedMask ^ nextModuleMask;
-    let sameWeight = 0;
     let totalWeight = 0;
-    let externalWeightedCostSum = 0;
-    let externalModuleCostSum = 0;
-    let externalLockKeyCostSum = 0;
+    const weightedOutcomes: Array<{
+      weight: number;
+      cost: number;
+      moduleCost: number;
+      lockKeyCost: number;
+    }> = [];
 
     for (const candidateState of result.states) {
       if (
@@ -426,26 +428,70 @@ export function readForcedLockAlternatives(
 
       totalWeight += weight;
       if (encodeStateKey(candidateState) === stateKey) {
-        sameWeight += weight;
         continue;
       }
 
       const nextStateValue = readStateValueFromExactState(result.stateValues, candidateState);
-      externalWeightedCostSum += weight * nextStateValue.cost;
-      externalModuleCostSum += weight * nextStateValue.expectedCosts.module;
-      externalLockKeyCostSum += weight * nextStateValue.expectedCosts.lockKey;
+      weightedOutcomes.push({
+        weight,
+        cost: nextStateValue.cost,
+        moduleCost: nextStateValue.expectedCosts.module,
+        lockKeyCost: nextStateValue.expectedCosts.lockKey,
+      });
     }
 
-    return buildAlternative(
-      ACTION_OPTION,
+    if (weightedOutcomes.length === 0) {
+      return null;
+    }
+
+    weightedOutcomes.sort((left, right) => left.cost - right.cost);
+
+    const protectedMaskValue = nextModuleMask | keyMask;
+    const actionCosts = buildActionCosts(
+      currentModuleMask,
       nextModuleMask,
       keyMask,
-      sameWeight,
-      totalWeight,
-      externalWeightedCostSum,
-      externalModuleCostSum,
-      externalLockKeyCostSum,
+      countBits(protectedMaskValue),
+      costWeights,
     );
+    let acceptedWeight = 0;
+    let acceptedWeightedCostSum = 0;
+    let acceptedModuleCostSum = 0;
+    let acceptedLockKeyCostSum = 0;
+
+    for (let outcomeIndex = 0; outcomeIndex < weightedOutcomes.length; outcomeIndex++) {
+      const outcome = weightedOutcomes[outcomeIndex]!;
+      acceptedWeight += outcome.weight;
+      acceptedWeightedCostSum += outcome.weight * outcome.cost;
+      acceptedModuleCostSum += outcome.weight * outcome.moduleCost;
+      acceptedLockKeyCostSum += outcome.weight * outcome.lockKeyCost;
+
+      const cost = (actionCosts.weightedCost * totalWeight + acceptedWeightedCostSum) / acceptedWeight;
+      const lowerBound = outcome.cost;
+      const upperBound = weightedOutcomes[outcomeIndex + 1]?.cost ?? Number.POSITIVE_INFINITY;
+      if (cost <= lowerBound + 1e-9 || cost > upperBound + 1e-9) {
+        continue;
+      }
+
+      const expectedCosts = {
+        module: (actionCosts.moduleCost * totalWeight + acceptedModuleCostSum) / acceptedWeight,
+        lockKey: (actionCosts.lockKeyCost * totalWeight + acceptedLockKeyCostSum) / acceptedWeight,
+      };
+
+      return {
+        protectedMask: decodeBooleanMask(protectedMaskValue),
+        action: buildActionFromMasks(ACTION_OPTION, nextModuleMask, keyMask) as Exclude<
+          OverloadAction,
+          { type: "done" }
+        >,
+        cost,
+        expectedCosts,
+        deltaFromOptimal: cost - currentStateValue.cost,
+        isCurrentOptimal: masksMatchAction(currentStateValue.action, ACTION_OPTION, nextModuleMask, keyMask),
+      };
+    }
+
+    return null;
   };
 
   for (const protectedMask of MASKS) {
