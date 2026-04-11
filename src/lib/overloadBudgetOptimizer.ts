@@ -432,14 +432,17 @@ export function readOverloadBudgetActionAlternatives(
       const ng1 = gradeMask & 1 ? 1 : 0;
       const ng2 = gradeMask & 2 ? 1 : 0;
       const ng3 = gradeMask & 4 ? 1 : 0;
+      if (o1 === 0 && ng1 !== 0) continue;
+      if (o2 === 0 && ng2 !== 0) continue;
+      if (o3 === 0 && ng3 !== 0) continue;
       if ((protectedMask & 1) !== 0 && ng1 !== g1) continue;
       if ((protectedMask & 2) !== 0 && ng2 !== g2) continue;
       if ((protectedMask & 4) !== 0 && ng3 !== g3) continue;
 
       let probability = 1;
-      if ((protectedMask & 1) === 0) probability *= meetsTargetGradeProbabilities[o1]![ng1]!;
-      if ((protectedMask & 2) === 0) probability *= meetsTargetGradeProbabilities[o2]![ng2]!;
-      if ((protectedMask & 4) === 0) probability *= meetsTargetGradeProbabilities[o3]![ng3]!;
+      if ((protectedMask & 1) === 0 && o1 !== 0) probability *= meetsTargetGradeProbabilities[o1]![ng1]!;
+      if ((protectedMask & 2) === 0 && o2 !== 0) probability *= meetsTargetGradeProbabilities[o2]![ng2]!;
+      if ((protectedMask & 4) === 0 && o3 !== 0) probability *= meetsTargetGradeProbabilities[o3]![ng3]!;
       if (probability <= 0) continue;
 
       const nextStateIndex =
@@ -743,14 +746,17 @@ export function optimizeOverloadBudgetSuccess(
         const ng1 = gradeMask & 1 ? 1 : 0;
         const ng2 = gradeMask & 2 ? 1 : 0;
         const ng3 = gradeMask & 4 ? 1 : 0;
+        if (o1 === 0 && ng1 !== 0) continue;
+        if (o2 === 0 && ng2 !== 0) continue;
+        if (o3 === 0 && ng3 !== 0) continue;
         if (p1 && ng1 !== g1) continue;
         if (p2 && ng2 !== g2) continue;
         if (p3 && ng3 !== g3) continue;
 
         let probability = 1;
-        if (!p1) probability *= meetsTargetGradeProbabilities[o1][ng1];
-        if (!p2) probability *= meetsTargetGradeProbabilities[o2][ng2];
-        if (!p3) probability *= meetsTargetGradeProbabilities[o3][ng3];
+        if (!p1 && o1 !== 0) probability *= meetsTargetGradeProbabilities[o1][ng1];
+        if (!p2 && o2 !== 0) probability *= meetsTargetGradeProbabilities[o2][ng2];
+        if (!p3 && o3 !== 0) probability *= meetsTargetGradeProbabilities[o3][ng3];
         if (probability <= 0) continue;
 
         gradeTransitionGradeMasksByStateAndMask[transitionOffset + transitionCount] = gradeMask;
